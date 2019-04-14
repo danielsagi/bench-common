@@ -15,6 +15,7 @@
 package check
 
 import (
+	"github.com/aquasecurity/bench-common/common"
 	"testing"
 )
 
@@ -59,7 +60,8 @@ groups:
 var definedTestConstraints = []string{"platform=ubuntu", "platform=rhel", "boot=grub"}
 
 func TestRunGroup(t *testing.T) {
-	c, err := NewControls([]byte(def), definedTestConstraints)
+	c, err := NewControls([]byte(def))
+	c.WithDefinitions(definedTestConstraints)
 	if err != nil {
 		t.Fatalf("could not create control object: %s", err)
 	}
@@ -69,17 +71,18 @@ func TestRunGroup(t *testing.T) {
 
 // TODO: make this test useful as of now it never fails.
 func TestRunChecks(t *testing.T) {
-	c, err := NewControls([]byte(def), definedTestConstraints)
+	c, err := NewControls([]byte(def))
+	c.WithDefinitions(definedTestConstraints).WithIds("1.1.2")
 	if err != nil {
 		t.Fatalf("could not create control object: %s", err)
 	}
 
-	c.RunChecks("1.1.2")
+	c.RunChecks()
 }
 
 func TestSummarizeGroup(t *testing.T) {
 	type TestCase struct {
-		state    State
+		state    common.State
 		group    Group
 		check    Check
 		Expected int
@@ -101,7 +104,7 @@ func TestSummarizeGroup(t *testing.T) {
 			actual = test.group.Fail
 		case "WARN":
 			actual = test.group.Warn
-		case INFO:
+		case "INFO":
 			actual = test.group.Info
 		}
 

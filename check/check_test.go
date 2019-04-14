@@ -2,10 +2,10 @@ package check
 
 import (
 	"github.com/aquasecurity/bench-common/auditeval"
+	"github.com/aquasecurity/bench-common/common"
+	yaml "gopkg.in/yaml.v2"
 	"reflect"
 	"testing"
-	yaml "gopkg.in/yaml.v2"
-
 )
 
 var testDefinedConstraints = map[string][]string{"platform": {"ubuntu", "rhel"}, "boot": {"grub"}}
@@ -22,7 +22,7 @@ test_items:
 func TestCheck_Run(t *testing.T) {
 	type TestCase struct {
 		check    Check
-		Expected State
+		Expected common.State
 	}
 
 	ts := new(auditeval.Tests)
@@ -30,16 +30,16 @@ func TestCheck_Run(t *testing.T) {
 		t.Fatalf("error unmarshaling tests yaml")
 	}
 
-	checkTypeManual := Check{Type: "manual",Commands:textToCommand("ps -ef"), Tests:ts, Scored: true}
-	checkTypeSkip := Check{Type: "skip",Commands:textToCommand("ps -ef"), Tests:ts, Scored: true}
-	checkNotScored := Check{Type: "",Commands:textToCommand("ps -ef"), Tests:ts, Scored: false}
+	checkTypeManual := Check{Type: "manual", Commands: textToCommand("ps -ef"), Tests: ts, Scored: true}
+	checkTypeSkip := Check{Type: "skip", Commands: textToCommand("ps -ef"), Tests: ts, Scored: true}
+	checkNotScored := Check{Type: "", Commands: textToCommand("ps -ef"), Tests: ts, Scored: false}
 	checkNoTests := Check{Type: "", Scored: true}
 
 	testCases := []TestCase{
-		{check: checkTypeManual, Expected: WARN},
-		{check: checkTypeSkip, Expected: INFO},
-		{check: checkNotScored, Expected: WARN}, // Not scored checks with no type should be marked warn
-		{check: checkNoTests, Expected: WARN},  // If there are no tests in the check, warn
+		{check: checkTypeManual, Expected: common.WARN},
+		{check: checkTypeSkip, Expected: common.INFO},
+		{check: checkNotScored, Expected: common.WARN}, // Not scored checks with no type should be marked warn
+		{check: checkNoTests, Expected: common.WARN},   // If there are no tests in the check, warn
 	}
 
 	for i, testCase := range testCases {

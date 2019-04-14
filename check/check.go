@@ -15,41 +15,33 @@
 package check
 
 import (
+	"archive/tar"
 	"bytes"
 	"fmt"
+	"github.com/aquasecurity/bench-common/actioneval"
+	"github.com/aquasecurity/bench-common/auditeval"
+	"github.com/aquasecurity/bench-common/common"
+	"github.com/golang/glog"
+	"gopkg.in/yaml.v2"
 	"io"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/aquasecurity/bench-common/auditeval"
-	"github.com/golang/glog"
 )
 
 // State is the state of a control check.
-type State string
 
-const (
-	// PASS check passed.
-	PASS State = "PASS"
-	// FAIL check failed.
-	FAIL = "FAIL"
-	// WARN could not carry out check.
-	WARN = "WARN"
-	// INFO informational message
-	INFO = "INFO"
-)
-
-func handleError(err error, context string) (errmsg string) {
-	if err != nil {
-		errmsg = fmt.Sprintf("%s, error: %s\n", context, err)
-	}
-	return
+type Action struct {
+	CheckType string        `yaml:"type"`
+	Args      yaml.MapSlice `yaml:"args"`
+	Count     bool          `yaml:"count"`
 }
 
 // Old version - checks don't have sub checks, each check has only one sub check as part of the check itself
 type BaseCheck struct {
 	Audit       string              `json:"audit"`
+	Action      Action              `json:"action" yaml:"action"`
 	Type        string              `json:"type"`
 	Commands    []*exec.Cmd         `json:"omit"`
 	Tests       *auditeval.Tests    `json:"omit"`
@@ -69,15 +61,21 @@ type Check struct {
 	SubChecks      []SubCheck       `yaml:"sub_checks"`
 	Audit          string           `json:"audit"`
 	Type           string           `json:"type"`
+	Action         Action           `json:"action" yaml:"action"`
 	Commands       []*exec.Cmd      `json:"omit"`
 	Tests          *auditeval.Tests `json:"omit"`
 	Remediation    string           `json:"-"`
 	TestInfo       []string         `json:"test_info"`
-	State          `json:"status"`
+	common.State   `json:"status"`
 	ActualValue    string `json:"actual_value"`
 	ExpectedResult string `json:"expected_result"`
 	Scored         bool   `json:"scored"`
 	IsMultiple     bool   `yaml:"use_multiple_values"`
+
+	//Internal members
+	boundaryPath string       `json:"-"`
+	isAction     bool         `json:"-"`
+	tarHeaders   []tar.Header `json:"-"`
 }
 
 // Group is a collection of similar checks.
@@ -91,18 +89,33 @@ type Group struct {
 	Info        int      `json:"info"` // Tests of type skip won't be run and will be marked as Info
 }
 
+func (c *Check) WithBoundaryPath(boundaryPath string) *Check {
+	c.boundaryPath = boundaryPath
+	return c
+}
+
+func (c *Check) WithAction(isAction bool) *Check {
+	c.isAction = isAction
+	return c
+}
+
+func (c *Check) WithTarHeaders(tarHeaders []tar.Header) *Check {
+	c.tarHeaders = tarHeaders
+	return c
+}
+
 // Run executes the audit commands specified in a check and outputs
 // the results.
 func (c *Check) Run(definedConstraints map[string][]string) {
 	// If check type is skip, force result to INFO
 	if c.Type == "skip" {
-		c.State = INFO
+		c.State = common.INFO
 		return
 	}
 
 	//If check type is manual or the check is not scored, force result to WARN
 	if c.Type == "manual" || !c.Scored {
-		c.State = WARN
+		c.State = common.WARN
 		return
 	}
 
@@ -113,13 +126,14 @@ func (c *Check) Run(definedConstraints map[string][]string) {
 			Tests:       c.Tests,
 			Type:        c.Type,
 			Audit:       c.Audit,
+			Action:      c.Action,
 			Remediation: c.Remediation,
 		}
 	} else {
 		subCheck = getFirstValidSubCheck(c.SubChecks, definedConstraints)
 
 		if subCheck == nil {
-			c.State = WARN
+			c.State = common.WARN
 			glog.V(1).Info("Failed to find a valid sub check, check ", c.ID)
 			return
 		}
@@ -128,7 +142,12 @@ func (c *Check) Run(definedConstraints map[string][]string) {
 	var out bytes.Buffer
 	var errmsgs string
 
-	out, errmsgs, c.State = runAuditCommands(*subCheck)
+	if !c.isAction {
+		out, errmsgs, c.State = runAuditCommands(*subCheck)
+	} else {
+
+		out, errmsgs, c.State = c.runAction(*subCheck)
+	}
 
 	if errmsgs != "" {
 		glog.V(2).Info(errmsgs)
@@ -145,12 +164,12 @@ func (c *Check) Run(definedConstraints map[string][]string) {
 		c.ExpectedResult = finalOutput.ExpectedResult
 
 		if finalOutput.TestResult {
-			c.State = PASS
+			c.State = common.PASS
 		} else {
-			c.State = FAIL
+			c.State = common.FAIL
 		}
 	} else {
-		c.State = WARN
+		c.State = common.WARN
 		glog.V(1).Info("Test output contains a nil value")
 		return
 	}
@@ -216,22 +235,22 @@ func isShellCommand(s string) bool {
 	return false
 }
 
-func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state State) {
+func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state common.State) {
 
 	// If check type is manual, force result to WARN.
 	if c.Type == "manual" {
-		return out, errmsgs, WARN
+		return out, errmsgs, common.WARN
 	}
 
 	if c.Type == "skip" {
-		return out, errmsgs, INFO
+		return out, errmsgs, common.INFO
 	}
 
 	// Check if command exists or exit with WARN.
 	for _, cmd := range c.Commands {
 		if !isShellCommand(cmd.Path) {
 			glog.V(1).Infof("%s: command not found", cmd.Path)
-			return out, errmsgs, WARN
+			return out, errmsgs, common.WARN
 		}
 	}
 
@@ -239,7 +258,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state Stat
 	n := len(c.Commands)
 	if n == 0 {
 		// Likely a warning message.
-		return out, errmsgs, WARN
+		return out, errmsgs, common.WARN
 	}
 
 	// Each command runs,
@@ -256,7 +275,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state Stat
 
 	for i < n {
 		cs[i-1].Stdout, err = cs[i].StdinPipe()
-		errmsgs += handleError(
+		errmsgs += common.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command: %s",
 				c.Audit,
@@ -270,7 +289,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state Stat
 	i = 0
 	for i < n {
 		err := cs[i].Start()
-		errmsgs += handleError(
+		errmsgs += common.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command: %s",
 				c.Audit,
@@ -284,7 +303,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state Stat
 	i = 0
 	for i < n {
 		err := cs[i].Wait()
-		errmsgs += handleError(
+		errmsgs += common.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command:%s",
 				c.Audit,
@@ -301,6 +320,32 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state Stat
 
 	// If the test actually ran
 	return out, errmsgs, ""
+}
+
+func (c *Check) runAction(baseCheck BaseCheck) (out bytes.Buffer, errmsgs string, state common.State) {
+
+	// If check type is manual, force result to WARN.
+	if baseCheck.Type == "manual" {
+		return out, errmsgs, common.WARN
+	}
+
+	if baseCheck.Type == "skip" {
+		return out, errmsgs, common.INFO
+	}
+
+	if baseCheck.Audit != "" {
+		return out, common.HandleError(fmt.Errorf("yaml Audit entity is not supported in non shell mode"), reflect.TypeOf(c).String()), common.FAIL
+
+	}
+	searchFilter, err := actioneval.SearchFilterFactory(baseCheck.Action.CheckType, baseCheck.Action.Args, c.tarHeaders)
+	if err != nil {
+		return out, common.HandleError(err, reflect.TypeOf(c).String()), common.FAIL
+	}
+	if searchFilter == nil {
+		return out, "Unsupported search type " + baseCheck.Action.CheckType, common.FAIL
+	}
+	var res = searchFilter.SearchFilterHandler(c.boundaryPath, baseCheck.Action.Count)
+	return res.Output, res.Errmsgs, res.State
 }
 
 func getFirstValidSubCheck(subChecks []SubCheck, definedConstraints map[string][]string) (subCheck *BaseCheck) {
