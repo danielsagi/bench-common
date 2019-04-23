@@ -129,7 +129,11 @@ func (controls *Controls) RunGroup() Summary {
 		for _, gid := range controls.ids {
 			if gid == group.ID {
 				for _, check := range group.Checks {
-					check.Run(controls.DefinedConstraints)
+					check.WithAction(controls.isAction).
+						WithBoundaryPath(controls.boundaryPath).
+						WithTarHeaders(controls.tarHeaders).
+						Run(controls.DefinedConstraints)
+
 					check.TestInfo = append(check.TestInfo, check.Remediation)
 					summarize(controls, check)
 					summarizeGroup(group, check)
@@ -159,11 +163,10 @@ func (controls *Controls) RunChecks() Summary {
 		for _, check := range group.Checks {
 			for _, id := range controls.ids {
 				if id == check.ID {
-					check = check.WithAction(controls.isAction).
+					check.WithAction(controls.isAction).
 						WithBoundaryPath(controls.boundaryPath).
-						WithTarHeaders(controls.tarHeaders)
-
-					check.Run(controls.DefinedConstraints)
+						WithTarHeaders(controls.tarHeaders).
+						Run(controls.DefinedConstraints)
 					check.TestInfo = append(check.TestInfo, check.Remediation)
 					summarize(controls, check)
 
