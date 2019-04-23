@@ -46,20 +46,11 @@ type BenchRunner struct {
 	mCheckList string
 }
 
-func New(configYaml []byte) (runner *BenchRunner, err error) {
+func New(configYaml []byte) (runner *BenchRunner) {
 
 	ctx := new(BenchRunner)
 	ctx.mConfigYaml = configYaml
-	// validate
-	if ctx.mConfigYaml == nil {
-		return nil, errors.New("ERROR empty yaml")
-	}
-	// try to parse the file and get controls
-	ctx.mControls, err = ctx.getControls()
-	if err != nil {
-		return nil, err
-	}
-	return ctx, nil
+	return ctx
 }
 
 func (ctx *BenchRunner) WithConstrains(constrains []string) *BenchRunner {
@@ -86,21 +77,29 @@ func (ctx *BenchRunner) WithCheckList(checkList string) *BenchRunner {
 	ctx.mCheckList = checkList
 	return ctx
 }
+func (ctx *BenchRunner) Build() (*BenchRunner, error) {
+	// validate
+	if ctx.mConfigYaml == nil {
+		return nil, errors.New("ERROR empty yaml")
+	}
 
-func (ctx *BenchRunner) getControls() (*check.Controls, error) {
-
-	controls, err := check.NewControls(ctx.mConfigYaml)
+	// try to parse the file and get controls
+	var err error
+	err = ctx.createControls()
 	if err != nil {
 		return nil, err
 	}
-	controls = controls.WithIsAction(ctx.mIsActionTest).
+	return ctx, nil
+}
+
+func (ctx *BenchRunner) createControls() (err error) {
+	ctx.mControls, err = check.NewControls(ctx.mConfigYaml).WithIsAction(ctx.mIsActionTest).
 		WithBoundary(ctx.mPathBoundary).
 		WithDefinitions(ctx.mDefinitions).
 		WithIds(util.CleanIDs(ctx.mCheckList)...).
 		WithTarHeaders(ctx.mTarHeaders).
 		Build()
-
-	return controls, err
+	return err
 }
 
 func (ctx *BenchRunner) runTests() check.Summary {

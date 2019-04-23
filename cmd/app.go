@@ -37,9 +37,10 @@ func app(cmd *cobra.Command, args []string) {
 func Main(filePath string, constraints []string) {
 
 	if data, err := ioutil.ReadFile(filePath); err == nil {
-		if runner, err := runner.New(data); err == nil {
-			runner = runner.WithCheckList("").
-				WithConstrains(constraints)
+		if runner, err := runner.New(data).
+			WithCheckList("").
+			WithConstrains(constraints).
+			Build(); err == nil {
 			if err := runner.RunTestsWithOutput(jsonFmt, noRemediations, includeTestOutput); err != nil {
 				common.ExitWithError(err)
 			}

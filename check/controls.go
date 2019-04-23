@@ -36,6 +36,7 @@ type Controls struct {
 	definitions        []string
 	ids                []string
 	tarHeaders         []tar.Header
+	inYaml             []byte
 }
 
 // Summary is a summary of the results of control checks run.
@@ -72,17 +73,18 @@ func (controls *Controls) WithTarHeaders(tarHeaders []tar.Header) *Controls {
 }
 
 // NewControls instantiates a new master Controls object.
-func NewControls(in []byte) (*Controls, error) {
+func NewControls(in []byte) *Controls {
 	c := new(Controls)
-	err := yaml.Unmarshal(in, c)
+	c.inYaml = in
+	return c
+}
+
+func (controls *Controls) Build() (*Controls, error) {
+
+	err := yaml.Unmarshal(controls.inYaml, controls)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal YAML: %s", err)
 	}
-
-	return c, nil
-}
-
-func (controls *Controls) Build() *Controls {
 	if !controls.isAction {
 		// Prepare audit commands
 		for _, group := range controls.Groups {
@@ -111,7 +113,7 @@ func (controls *Controls) Build() *Controls {
 			}
 		}
 	}
-	return controls
+	return controls, nil
 }
 
 func (controls *Controls) RunGroup() Summary {
