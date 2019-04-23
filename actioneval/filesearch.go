@@ -201,6 +201,7 @@ func (ctx *FileSearchFilter) SearchFilterHandler(workspacePath string, count boo
 		return result
 	}
 	if count {
+		result.Output.Reset()
 		result.Output.WriteString(fmt.Sprintf("%d\n", result.Lines))
 	}
 	return result

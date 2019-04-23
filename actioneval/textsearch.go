@@ -127,6 +127,7 @@ func (ctx *TextSearchFilter) SearchFilterHandler(workspacePath string, count boo
 		result.State = common.FAIL
 	}
 	if count {
+		result.Output.Reset()
 		result.Output.WriteString(fmt.Sprintf("%d\n", result.Lines))
 	}
 	return result
