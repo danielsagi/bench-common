@@ -1,4 +1,4 @@
-// Copyright © 2017 Aqua Security Software Ltd. <info@aquasec.com>
+// Copyright © 2019 Aqua Security Software Ltd. <info@aquasec.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ type SearchFilterResult struct {
 	Lines   int
 }
 
-type ISearchFilter interface {
+type SearchFilter interface {
 	SearchFilterHandler(workspacePath string, count bool) (result SearchFilterResult)
 }
 
-func SearchFilterFactory(searchFilterType string, mapSlice yaml.MapSlice, tarHeaders []tar.Header) (ISearchFilter, error) {
+func SearchFilterFactory(searchFilterType string, mapSlice yaml.MapSlice, tarHeaders []tar.Header) (SearchFilter, error) {
 
 	switch searchFilterType {
 

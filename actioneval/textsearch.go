@@ -1,4 +1,4 @@
-// Copyright © 2017 Aqua Security Software Ltd. <info@aquasec.com>
+// Copyright © 2019 Aqua Security Software Ltd. <info@aquasec.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ type TextSearchFilter struct {
 	filterType     common.YamlEntityValue
 }
 
-func NewTextSearchFilter(mapSlice yaml.MapSlice) ISearchFilter {
+func NewTextSearchFilter(mapSlice yaml.MapSlice) SearchFilter {
 
 	filter := new(TextSearchFilter)
 
@@ -54,19 +54,19 @@ func NewTextSearchFilter(mapSlice yaml.MapSlice) ISearchFilter {
 	return filter
 }
 
-func (ctx *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool) (result SearchFilterResult) {
+func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool) (result SearchFilterResult) {
 
-	rootPath := path.Join(workspacePath, ctx.searchLocation)
+	rootPath := path.Join(workspacePath, t.searchLocation)
 	clearRootPath := path.Clean(rootPath)
 	// ensure that search location does not escape the workspace
 	if !strings.HasPrefix(clearRootPath, workspacePath) {
-		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(ctx).String())
+		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(t).String())
 		result.State = common.FAIL
 		return result
 	}
 
 	if fileStat, statErr := os.Lstat(clearRootPath); statErr != nil {
-		result.Errmsgs += common.HandleError(statErr, reflect.TypeOf(ctx).String())
+		result.Errmsgs += common.HandleError(statErr, reflect.TypeOf(t).String())
 		result.State = common.FAIL
 		return result
 	} else {
@@ -74,19 +74,19 @@ func (ctx *TextSearchFilter) SearchFilterHandler(workspacePath string, count boo
 			// ensure that link does not refer outside of the image path
 			var realPath, err = filepath.EvalSymlinks(clearRootPath)
 			if err != nil {
-				result.Errmsgs += common.HandleError(err, reflect.TypeOf(ctx).String())
+				result.Errmsgs += common.HandleError(err, reflect.TypeOf(t).String())
 				result.State = common.FAIL
 				return result
 			}
 
 			if !strings.HasPrefix(realPath, workspacePath) {
-				result.Errmsgs += common.HandleError(fmt.Errorf("Symbolic link file "+clearRootPath+" refers to "+realPath+" , that is out of image fs scope"), reflect.TypeOf(ctx).String())
+				result.Errmsgs += common.HandleError(fmt.Errorf("Symbolic link file "+clearRootPath+" refers to "+realPath+" , that is out of image fs scope"), reflect.TypeOf(t).String())
 				result.State = common.FAIL
 				return result
 			}
 			// ensure this is regular file i.e. not dir or socket file ...
 		} else if !fileStat.Mode().IsRegular() {
-			result.Errmsgs += common.HandleError(fmt.Errorf("TextSearch accepts only regular files"+fileStat.Name()), reflect.TypeOf(ctx).String())
+			result.Errmsgs += common.HandleError(fmt.Errorf("TextSearch accepts only regular files"+fileStat.Name()), reflect.TypeOf(t).String())
 			result.State = common.FAIL
 			return result
 
@@ -98,7 +98,7 @@ func (ctx *TextSearchFilter) SearchFilterHandler(workspacePath string, count boo
 	defer f.Close()
 
 	if err != nil {
-		result.Errmsgs += common.HandleError(fmt.Errorf("Unable to open file"+f.Name()), reflect.TypeOf(ctx).String())
+		result.Errmsgs += common.HandleError(fmt.Errorf("Unable to open file"+f.Name()), reflect.TypeOf(t).String())
 		result.State = common.FAIL
 		return result
 	}
@@ -109,9 +109,9 @@ func (ctx *TextSearchFilter) SearchFilterHandler(workspacePath string, count boo
 		line := scanner.Text()
 		match = false
 		for _, word := range strings.Fields(line) {
-			if ctx.filterType == common.HasPrefixVal && strings.HasPrefix(word, ctx.filter) ||
-				ctx.filterType == common.HasSuffixVal && strings.HasSuffix(word, ctx.filter) ||
-				ctx.filterType == common.ContainsVal && strings.Contains(word, ctx.filter) {
+			if t.filterType == common.HasPrefixVal && strings.HasPrefix(word, t.filter) ||
+				t.filterType == common.HasSuffixVal && strings.HasSuffix(word, t.filter) ||
+				t.filterType == common.ContainsVal && strings.Contains(word, t.filter) {
 				match = true
 				break
 			}

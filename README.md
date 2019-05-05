@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/aquasecurity/bench-common.svg?branch=master)](https://travis-ci.org/aquasecurity/bench-common)
 # Build and Test
 ## Requirement
 1. Docker CE

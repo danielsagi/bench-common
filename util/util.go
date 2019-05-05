@@ -16,13 +16,13 @@ package util
 
 import (
 	"fmt"
-	"github.com/aquasecurity/bench-common/check"
-	"github.com/aquasecurity/bench-common/common"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
+	"github.com/aquasecurity/bench-common/check"
+	"github.com/aquasecurity/bench-common/common"
 	"github.com/fatih/color"
 	"github.com/golang/glog"
 )

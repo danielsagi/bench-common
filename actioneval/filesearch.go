@@ -1,4 +1,4 @@
-// Copyright © 2017 Aqua Security Software Ltd. <info@aquasec.com>
+// Copyright © 2019 Aqua Security Software Ltd. <info@aquasec.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,29 +34,29 @@ type tarFileInfo struct {
 	tarHeader tar.Header
 }
 
-func (ctx *tarFileInfo) Name() string {
-	return filepath.Base(ctx.tarHeader.Name)
+func (tarInfo *tarFileInfo) Name() string {
+	return filepath.Base(tarInfo.tarHeader.Name)
 }
 
-func (ctx *tarFileInfo) Mode() os.FileMode {
-	return os.FileMode(convertMode(ctx.tarHeader.Mode))
+func (tarInfo *tarFileInfo) Mode() os.FileMode {
+	return os.FileMode(convertMode(tarInfo.tarHeader.Mode))
 }
 
-func (ctx *tarFileInfo) Size() int64 {
-	return ctx.tarHeader.Size
+func (tarInfo *tarFileInfo) Size() int64 {
+	return tarInfo.tarHeader.Size
 }
 
-func (ctx *tarFileInfo) ModTime() time.Time {
-	return ctx.tarHeader.ModTime
+func (tarInfo *tarFileInfo) ModTime() time.Time {
+	return tarInfo.tarHeader.ModTime
 }
 
-func (ctx *tarFileInfo) IsDir() bool {
+func (tarInfo *tarFileInfo) IsDir() bool {
 	// see tar specification for available flags  https://www.freebsd.org/cgi/man.cgi?query=tar&sektion=5&manpath=FreeBSD+8-current
-	return ctx.tarHeader.Typeflag&0xD == 0xD
+	return tarInfo.tarHeader.Typeflag&0xD == 0xD
 }
 
-func (ctx *tarFileInfo) Sys() interface{} {
-	return ctx.tarHeader
+func (tarInfo *tarFileInfo) Sys() interface{} {
+	return tarInfo.tarHeader
 }
 
 type FileSearchFilter struct {
@@ -80,9 +80,9 @@ type FileSearchFilter struct {
 	userId  int64
 }
 
-func (ctx *FileSearchFilter) WithTarHeaders(tarHeaders []tar.Header) *FileSearchFilter {
-	ctx.tarHeaders = tarHeaders
-	return ctx
+func (f *FileSearchFilter) WithTarHeaders(tarHeaders []tar.Header) *FileSearchFilter {
+	f.tarHeaders = tarHeaders
+	return f
 }
 
 func NewFileSearchFilter(mapSlice yaml.MapSlice) (filter *FileSearchFilter, err error) {
@@ -102,24 +102,22 @@ func NewFileSearchFilter(mapSlice yaml.MapSlice) (filter *FileSearchFilter, err 
 		case common.FilterEntity:
 			filter.filter = val
 		case common.PermissionEntity:
-			if filter.perm, filter.smode, err = parsePermission(val); err != nil {
-				return nil, err
-			}
+			filter.perm, filter.smode, err = parsePermission(val)
 		case common.FileTypeEntity:
 			filter.fileType = convertFileType(val)
 		case common.FilterTypeEntity:
 			filter.filterType = convertFilterType(val)
 		case common.FilterGroupId:
-			if filter.groupId, err = strconv.ParseInt(val, 10, 64); err != nil {
-				return nil, err
-			}
+			filter.groupId, err = strconv.ParseInt(val, 10, 64)
 		case common.FilterUserId:
-			if filter.userId, err = strconv.ParseInt(val, 10, 64); err != nil {
-				return nil, err
-			}
+			filter.userId, err = strconv.ParseInt(val, 10, 64)
+		}
+
+		if err != nil {
+			return nil, err
 		}
 	}
-	return filter, nil
+	return filter, err
 }
 
 func parseMapKeyValToString(item yaml.MapItem) (key string, val string) {
@@ -157,14 +155,14 @@ func convertFilterType(filterType string) common.TextFilterType {
 	}
 }
 
-func (ctx *FileSearchFilter) SearchFilterHandler(workspacePath string, count bool) (result SearchFilterResult) {
+func (f *FileSearchFilter) SearchFilterHandler(workspacePath string, count bool) (result SearchFilterResult) {
 
-	rootPath := path.Join(workspacePath, ctx.searchLocation)
+	rootPath := path.Join(workspacePath, f.searchLocation)
 	clearRootPath := path.Clean(rootPath)
 
 	// ensure that search location does not escape the workspace
 	if !strings.HasPrefix(clearRootPath, workspacePath) {
-		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(ctx).String())
+		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(f).String())
 		result.State = common.FAIL
 		return result
 	}
@@ -172,11 +170,11 @@ func (ctx *FileSearchFilter) SearchFilterHandler(workspacePath string, count boo
 	walkMethod := func(filePath string, info os.FileInfo, err error) error {
 
 		loc := path.Join("/", filePath)
-		if !strings.HasPrefix(loc, path.Clean(ctx.searchLocation)) {
+		if !strings.HasPrefix(loc, path.Clean(f.searchLocation)) {
 			return nil
 		}
 
-		if !ctx.satisfyAllFilters(info) {
+		if !f.satisfyAllFilters(info) {
 			return nil
 		}
 
@@ -186,17 +184,17 @@ func (ctx *FileSearchFilter) SearchFilterHandler(workspacePath string, count boo
 	}
 
 	var walkErr error
-	if ctx.tarHeaders == nil {
+	if f.tarHeaders == nil {
 		walkErr = filepath.Walk(clearRootPath, walkMethod)
 	} else {
-		for _, header := range ctx.tarHeaders {
+		for _, header := range f.tarHeaders {
 			info := &tarFileInfo{tarHeader: header}
 			walkMethod(header.Name, info, nil)
 		}
 	}
 
 	if walkErr != nil {
-		result.Errmsgs += common.HandleError(fmt.Errorf(walkErr.Error()), reflect.TypeOf(ctx).String())
+		result.Errmsgs += common.HandleError(fmt.Errorf(walkErr.Error()), reflect.TypeOf(f).String())
 		result.State = common.FAIL
 		return result
 	}
@@ -207,12 +205,12 @@ func (ctx *FileSearchFilter) SearchFilterHandler(workspacePath string, count boo
 	return result
 }
 
-func (ctx *FileSearchFilter) satisfyGroupIdAnUserIdFilter(info os.FileInfo) bool {
+func (f *FileSearchFilter) satisfyGroupIdAnUserIdFilter(info os.FileInfo) bool {
 
 	var uid, gid uint32
 	//check groups
 	if info.Sys() != nil {
-		if ctx.tarHeaders == nil {
+		if f.tarHeaders == nil {
 			if sys, ok := info.Sys().(*syscall.Stat_t); ok {
 				uid = uint32(sys.Uid)
 				gid = uint32(sys.Gid)
@@ -225,70 +223,70 @@ func (ctx *FileSearchFilter) satisfyGroupIdAnUserIdFilter(info os.FileInfo) bool
 		}
 	}
 
-	if ctx.userId != -1 && uint32(ctx.userId) != uid {
+	if f.userId != -1 && uint32(f.userId) != uid {
 		return false
 	}
 
-	if ctx.groupId != -1 && uint32(ctx.groupId) != gid {
+	if f.groupId != -1 && uint32(f.groupId) != gid {
 		return false
 	}
 
 	return true
 }
-func (ctx *FileSearchFilter) satisfyAllFilters(info os.FileInfo) bool {
+func (f *FileSearchFilter) satisfyAllFilters(info os.FileInfo) bool {
 
-	if ctx.filter != "" &&
-		!ctx.satisfyFilter(info.Name()) {
+	if f.filter != "" &&
+		!f.satisfyFilter(info.Name()) {
 		return false
 	}
 
 	// check if we satisfy the permission filter condition
-	if ctx.perm != 0 && ctx.smode != 0 && !ctx.satisfyPermissionFilter(info) {
+	if f.perm != 0 && f.smode != 0 && !f.satisfyPermissionFilter(info) {
 		return false
 	}
 
 	// check if we satisfy the file type filter condition
-	if !ctx.satisfyFileType(info) {
+	if !f.satisfyFileType(info) {
 		return false
 	}
 
-	if !ctx.satisfyGroupIdAnUserIdFilter(info) {
+	if !f.satisfyGroupIdAnUserIdFilter(info) {
 		return false
 	}
 
 	return true
 }
 
-func (ctx *FileSearchFilter) satisfyPermissionFilter(info os.FileInfo) bool {
+func (f *FileSearchFilter) satisfyPermissionFilter(info os.FileInfo) bool {
 
 	filePerm := int64(info.Mode())
-	if (ctx.smode == common.ModeExact && (filePerm&070000777 == ctx.perm)) ||
-		(ctx.smode == common.ModeAnyBits && (filePerm&ctx.perm != 0)) ||
-		(ctx.smode == common.ModeAllBits && (filePerm&ctx.perm == ctx.perm)) {
+	if (f.smode == common.ModeExact && (filePerm&070000777 == f.perm)) ||
+		(f.smode == common.ModeAnyBits && (filePerm&f.perm != 0)) ||
+		(f.smode == common.ModeAllBits && (filePerm&f.perm == f.perm)) {
 		return true
 	}
 	return false
 }
 
-func (ctx *FileSearchFilter) satisfyFilter(filename string) bool {
+func (f *FileSearchFilter) satisfyFilter(filename string) bool {
 
-	if (ctx.filterType == common.TextFilterExact && strings.EqualFold(filename, ctx.filter)) ||
-		(ctx.filterType == common.TextFilterHasPrefix && strings.HasPrefix(filename, ctx.filter)) ||
-		(ctx.filterType == common.TextFilterHasSuffix && strings.HasSuffix(filename, ctx.filter)) ||
-		(ctx.filterType == common.TextFilterContains && strings.Contains(filename, ctx.filter)) {
+	if (f.filterType == common.TextFilterExact && strings.EqualFold(filename, f.filter)) ||
+		(f.filterType == common.TextFilterHasPrefix && strings.HasPrefix(filename, f.filter)) ||
+		(f.filterType == common.TextFilterHasSuffix && strings.HasSuffix(filename, f.filter)) ||
+		(f.filterType == common.TextFilterContains && strings.Contains(filename, f.filter)) {
 		return true
 	}
 	return false
 }
 
 //Verify the file type meets the criteria from yaml , i.e dir/symblink oor regular file
-func (ctx *FileSearchFilter) satisfyFileType(fileInfo os.FileInfo) bool {
+func (f *FileSearchFilter) satisfyFileType(fileInfo os.FileInfo) bool {
 
 	fileInfo.Mode()
-	if (ctx.fileType == common.FileFilterDirectory && fileInfo.IsDir()) ||
-		(ctx.fileType == common.FileFilterSymblink && fileInfo.Mode()&os.ModeSymlink != 0) ||
-		(ctx.fileType == common.FileFilterRegularFile && fileInfo.Mode().IsRegular()) ||
-		(ctx.fileType == common.FileFilterAll) {
+	if (f.fileType == common.FileFilterDirectory && fileInfo.IsDir()) ||
+		(f.fileType == common.FileFilterSymblink && fileInfo.Mode()&os.ModeSymlink != 0) ||
+		(f.fileType == common.FileFilterRegularFile && fileInfo.Mode().IsRegular()) ||
+		(f.fileType == common.FileFilterAll) {
 		return true
 	}
 	return false
