@@ -2,140 +2,124 @@ package actioneval
 
 import (
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
-	"github.com/aquasecurity/bench-common/mockdata"
-	"gopkg.in/yaml.v2"
+	"strings"
+
 	"io/ioutil"
 	"os"
 	"path"
-
-	//"os"
 	"testing"
+
+	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/mockdata"
+	"gopkg.in/yaml.v2"
 )
 
 //create tmp file for that will hold test content
-var tmpFile = fmt.Sprintf("%v,%d", "/tmp/test_text_search_content", os.Getpid())
+var tmpFile = fmt.Sprintf("%v-%d", "/tmp/test_text_search_content", os.Getpid())
 
-func TestTextSearchFailWrongPath(t *testing.T) {
+func TestTextSearchFailState(t *testing.T) {
+	testCases := []struct {
+		yaml          string
+		expectedState common.State
+		testName      string
+		workspace     string
+		errmsg        string
+	}{
+		{mockdata.TestData1,
+			common.FAIL,
+			"Test for wrong root path", "",
+			"no such file or directory"},
 
-	var args yaml.MapSlice
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, "build", "exact"),
+			common.FAIL,
+			"Test relative workspace path", "/root/../../../a.txt",
+			"are not supported"},
 
-	if err := yaml.Unmarshal([]byte(mockdata.TestData1), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v\n", err.Error())
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, 555, "wrong_type"),
+			common.FAIL,
+			"Test for wrong type ", "/",
+			"no results found"},
+
+		{fmt.Sprintf(mockdata.TestData2, "/tmp", "", ""),
+			common.FAIL,
+			"Test for file type", "/",
+			"invalid file"},
 	}
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s", tc.testName), func(t *testing.T) {
+			var args yaml.MapSlice
+			if err := yaml.Unmarshal([]byte(tc.yaml), &args); err != nil {
+				t.Errorf("test fail: yaml unmarshal failed %v\n", err.Error())
+				return
+			}
 
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v\n", common.FAIL, res.State)
-	}
+			mockdata.CreateContentFile(tmpFile)
+			defer os.Remove(tmpFile)
 
-}
+			testSearch := NewTextSearchFilter(args)
+			var res = testSearch.SearchFilterHandler(tc.workspace, false)
 
-func TestTextSearchContainsMatch(t *testing.T) {
+			if res.State != tc.expectedState {
+				t.Errorf("test fail: expected: %v actual: %v\n", tc.expectedState, res.State)
+				return
+			}
 
-	var testYaml = fmt.Sprintf(mockdata.TestData2, tmpFile, "able", "contains")
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
+			if !strings.Contains(res.Errmsgs, tc.errmsg) {
+				t.Errorf("test fail: expected err: %v actual: %v\n", tc.errmsg, res.Errmsgs)
+				return
 
-	if res.Lines != 3 {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", 3, res.Lines, res.Errmsgs)
-	}
-}
-
-func TestTextSearchHasPrefixMatch(t *testing.T) {
-
-	var testYaml = fmt.Sprintf(mockdata.TestData2, tmpFile, "able", "hasPrefix")
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
-	if res.Lines != 2 {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", 2, res.Lines, res.Errmsgs)
-	}
-}
-
-func TestTextSearchHasSuffixMatch(t *testing.T) {
-
-	var testYaml = fmt.Sprintf(mockdata.TestData2, tmpFile, "ing", "hasSuffix")
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
-	if res.Lines != 14 {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v\n", 15, res.Lines, res.Errmsgs)
+			}
+		})
 	}
 }
 
-func TestTextSearchExactContains(t *testing.T) {
+// 4 tests in one testsuite
+func TestTextSearchLinesCount(t *testing.T) {
+	testCases := []struct {
+		yaml               string
+		testName           string
+		workspace          string
+		expectedLinesCount int
+	}{
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, "able", "contains"),
+			"Text Search 'Contains'",
+			"/",
+			3,
+		},
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, "build", "contains"),
+			"Text Search 'Contains'",
+			"/",
+			10,
+		},
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, "able", "hasPrefix"),
+			"Text Search 'hasPrefix'",
+			"/",
+			2,
+		},
+		{fmt.Sprintf(mockdata.TestData2, tmpFile, "ing", "hasSuffix"),
+			"Text Search 'hasSuffix'",
+			"/",
+			14,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s", tc.testName), func(t *testing.T) {
+			var args yaml.MapSlice
+			if err := yaml.Unmarshal([]byte(tc.yaml), &args); err != nil {
+				t.Errorf("test fail: yaml unmarshal failed %v\n", err.Error())
+				return
+			}
 
-	var testYaml = fmt.Sprintf(mockdata.TestData2, tmpFile, "build", "contains")
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
-	if res.Lines != 10 {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", 7, res.Lines, res.Errmsgs)
-	}
-}
+			mockdata.CreateContentFile(tmpFile)
+			defer os.Remove(tmpFile)
 
-func TestTextSearchRelativePathFailure(t *testing.T) {
-	var testYaml = fmt.Sprintf(mockdata.TestData2, tmpFile, "build", "exact")
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/root/../../../a.txt", false)
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", common.FAIL, res.State, res.Errmsgs)
-	}
-}
-func TestTextSearchIntTypes(t *testing.T) {
-	var testYaml = fmt.Sprintf(mockdata.TestDataInTypes, tmpFile, 555, 666)
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	mockdata.CreateContentFile(tmpFile)
-	defer mockdata.DeleteContentFile(tmpFile)
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/root/../../../a.txt", false)
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", common.FAIL, res.State, res.Errmsgs)
-	}
-}
+			testSearch := NewTextSearchFilter(args)
+			var res = testSearch.SearchFilterHandler(tc.workspace, false)
 
-func TestTextSearchNotRegular(t *testing.T) {
-	var testYaml = fmt.Sprintf(mockdata.TestDataInTypes, "/tmp/", 555, 666)
-	var args yaml.MapSlice
-	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
-		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())
-	}
-	testSearch := NewTextSearchFilter(args)
-	var res = testSearch.SearchFilterHandler("/", false)
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", common.FAIL, res.State, res.Errmsgs)
+			if res.Lines != tc.expectedLinesCount {
+				t.Errorf("test fail: expected: %v actual: %v, err: %v", tc.expectedLinesCount, res.Lines, res.Errmsgs)
+			}
+		})
 	}
 }
 
@@ -160,7 +144,7 @@ func TestTextSearchLink(t *testing.T) {
 	tmpDir, _ := setupDummyImageFs()
 	defer os.RemoveAll(tmpDir)
 
-	var testYaml = fmt.Sprintf(mockdata.TestDataInTypes, "/etc/passwd.lnk", 555, 666)
+	var testYaml = fmt.Sprintf(mockdata.TestData2, "/etc/passwd.lnk", 555, 666)
 	var args yaml.MapSlice
 	if err := yaml.Unmarshal([]byte(testYaml), &args); err != nil {
 		t.Errorf("test fail: yaml unmarshal failed %v", err.Error())

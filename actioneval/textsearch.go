@@ -86,7 +86,7 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 			}
 			// ensure this is regular file i.e. not dir or socket file ...
 		} else if !fileStat.Mode().IsRegular() {
-			result.Errmsgs += common.HandleError(fmt.Errorf("TextSearch accepts only regular files"+fileStat.Name()), reflect.TypeOf(t).String())
+			result.Errmsgs += common.HandleError(fmt.Errorf("invalid file "+clearRootPath), reflect.TypeOf(t).String())
 			result.State = common.FAIL
 			return result
 
@@ -124,6 +124,7 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 		}
 	}
 	if result.Lines == 0 {
+		result.Errmsgs += common.HandleError(fmt.Errorf("no results found"), reflect.TypeOf(t).String())
 		result.State = common.FAIL
 	}
 	if count {

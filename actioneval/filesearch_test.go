@@ -4,18 +4,15 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
-	"github.com/aquasecurity/bench-common/mockdata"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
-)
 
-type ac struct {
-	Args yaml.MapSlice `yaml:"args"`
-}
+	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/mockdata"
+)
 
 func setUp() (string, error) {
 

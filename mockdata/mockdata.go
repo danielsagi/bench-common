@@ -69,10 +69,6 @@ they simplify not only the implementation but also, more important, the use of t
 
 }
 
-func DeleteContentFile(filename string) {
-	os.Remove(filename)
-}
-
 var Mockfiles = []struct {
 	File  string
 	Perm  os.FileMode
