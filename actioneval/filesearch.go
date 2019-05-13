@@ -17,8 +17,6 @@ package actioneval
 import (
 	"archive/tar"
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
-	"gopkg.in/yaml.v2"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,37 +25,10 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
+
+	"github.com/aquasecurity/bench-common/common"
+	"gopkg.in/yaml.v2"
 )
-
-type tarFileInfo struct {
-	tarHeader tar.Header
-}
-
-func (tarInfo *tarFileInfo) Name() string {
-	return filepath.Base(tarInfo.tarHeader.Name)
-}
-
-func (tarInfo *tarFileInfo) Mode() os.FileMode {
-	return os.FileMode(convertMode(tarInfo.tarHeader.Mode))
-}
-
-func (tarInfo *tarFileInfo) Size() int64 {
-	return tarInfo.tarHeader.Size
-}
-
-func (tarInfo *tarFileInfo) ModTime() time.Time {
-	return tarInfo.tarHeader.ModTime
-}
-
-func (tarInfo *tarFileInfo) IsDir() bool {
-	// see tar specification for available flags  https://www.freebsd.org/cgi/man.cgi?query=tar&sektion=5&manpath=FreeBSD+8-current
-	return tarInfo.tarHeader.Typeflag&0xD == 0xD
-}
-
-func (tarInfo *tarFileInfo) Sys() interface{} {
-	return tarInfo.tarHeader
-}
 
 type FileSearchFilter struct {
 
@@ -72,7 +43,7 @@ type FileSearchFilter struct {
 	fileType common.FileFilterType
 	// permission 0600,0777,/777 ,-666 etc...
 	perm  int64
-	smode common.PermissionSearchMode
+	sMode common.PermissionSearchMode
 
 	tarHeaders []tar.Header
 
@@ -102,7 +73,7 @@ func NewFileSearchFilter(mapSlice yaml.MapSlice) (filter *FileSearchFilter, err 
 		case common.FilterEntity:
 			filter.filter = val
 		case common.PermissionEntity:
-			filter.perm, filter.smode, err = parsePermission(val)
+			filter.perm, filter.sMode, err = parsePermission(val)
 		case common.FileTypeEntity:
 			filter.fileType = convertFileType(val)
 		case common.FilterTypeEntity:
@@ -162,7 +133,7 @@ func (f *FileSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 
 	// ensure that search location does not escape the workspace
 	if !strings.HasPrefix(clearRootPath, workspacePath) {
-		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(f).String())
+		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" is not supported "), reflect.TypeOf(f).String())
 		result.State = common.FAIL
 		return result
 	}
@@ -188,8 +159,7 @@ func (f *FileSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 		walkErr = filepath.Walk(clearRootPath, walkMethod)
 	} else {
 		for _, header := range f.tarHeaders {
-			info := &tarFileInfo{tarHeader: header}
-			walkMethod(header.Name, info, nil)
+			walkErr = walkMethod(header.Name, header.FileInfo(), nil)
 		}
 	}
 
@@ -210,16 +180,10 @@ func (f *FileSearchFilter) satisfyGroupIdAnUserIdFilter(info os.FileInfo) bool {
 	var uid, gid uint32
 	//check groups
 	if info.Sys() != nil {
-		if f.tarHeaders == nil {
-			if sys, ok := info.Sys().(*syscall.Stat_t); ok {
-				uid = uint32(sys.Uid)
-				gid = uint32(sys.Gid)
-			}
-		} else {
-			if sys, ok := info.Sys().(tar.Header); ok {
-				uid = uint32(sys.Uid)
-				gid = uint32(sys.Gid)
-			}
+
+		if sys, ok := info.Sys().(*syscall.Stat_t); ok {
+			uid = uint32(sys.Uid)
+			gid = uint32(sys.Gid)
 		}
 	}
 
@@ -241,7 +205,7 @@ func (f *FileSearchFilter) satisfyAllFilters(info os.FileInfo) bool {
 	}
 
 	// check if we satisfy the permission filter condition
-	if f.perm != 0 && f.smode != 0 && !f.satisfyPermissionFilter(info) {
+	if f.perm != 0 && f.sMode != 0 && !f.satisfyPermissionFilter(info) {
 		return false
 	}
 
@@ -260,9 +224,9 @@ func (f *FileSearchFilter) satisfyAllFilters(info os.FileInfo) bool {
 func (f *FileSearchFilter) satisfyPermissionFilter(info os.FileInfo) bool {
 
 	filePerm := int64(info.Mode())
-	if (f.smode == common.ModeExact && (filePerm&070000777 == f.perm)) ||
-		(f.smode == common.ModeAnyBits && (filePerm&f.perm != 0)) ||
-		(f.smode == common.ModeAllBits && (filePerm&f.perm == f.perm)) {
+	if (f.sMode == common.ModeExact && (filePerm&070000777 == f.perm)) ||
+		(f.sMode == common.ModeAnyBits && (filePerm&f.perm != 0)) ||
+		(f.sMode == common.ModeAllBits && (filePerm&f.perm == f.perm)) {
 		return true
 	}
 	return false
@@ -305,7 +269,7 @@ func parsePermission(perm string) (permInt int64, mode common.PermissionSearchMo
 	} else {
 		mode = common.ModeExact
 	}
-	//strip string form any non numeric chars
+	//strip non numeric chars
 	reg, err := regexp.Compile("\\D")
 	if err != nil {
 		return 0, 0, err
@@ -323,10 +287,10 @@ func parsePermission(perm string) (permInt int64, mode common.PermissionSearchMo
 	}
 }
 
-// tar mode consist of 12 bits , while os.FileMode consist of 32 bits
-// in os.FileMode - first 3 bits represents the setuid/setgid etc.. and last 9 bits represents the mode,
-// so the first 3 bits of the tar mode we move to the beginning of 32 bit variable
-// and the last 9 bits of the tar mode remains in the same place in new 32 bit variable
+// the input mode consist of 12 bits
+// first three bits represents the sticky bit/setuid/setgid
+// other 9 bits represents the file mode i.e 777
+// in order to compare it with os.FileMode, need to convert to 32 bits
 func convertMode(mode int64) uint64 {
-	return (07000 & uint64(mode) << 12) | uint64(mode)&0777
+	return (07000 & uint64(mode) << 12) | uint64(mode) & 0777
 }

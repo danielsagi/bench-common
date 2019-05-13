@@ -14,8 +14,17 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//create tmp file for that will hold test content
-var tmpFile = fmt.Sprintf("%v-%d", "/tmp/test_text_search_content", os.Getpid())
+var tmpFile = getTemporaryFileName()
+
+func getTemporaryFileName() string{
+
+	f,err:= ioutil.TempFile(os.TempDir(), "test_text_search_content")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	return f.Name()
+}
 
 func TestTextSearchFailState(t *testing.T) {
 	testCases := []struct {
@@ -30,14 +39,14 @@ func TestTextSearchFailState(t *testing.T) {
 			"Test for wrong root path", "",
 			"no such file or directory"},
 
-		{fmt.Sprintf(mockdata.TestData2, tmpFile, "build", "exact"),
+		{fmt.Sprintf(mockdata.TestData2, getTemporaryFileName(), "build", "exact"),
 			common.FAIL,
 			"Test relative workspace path", "/root/../../../a.txt",
 			"are not supported"},
 
-		{fmt.Sprintf(mockdata.TestData2, tmpFile, 555, "wrong_type"),
+		{fmt.Sprintf(mockdata.TestData2, getTemporaryFileName(), 555, "wrong_type"),
 			common.FAIL,
-			"Test for wrong type ", "/",
+			"Test for wrong type", "/",
 			"no results found"},
 
 		{fmt.Sprintf(mockdata.TestData2, "/tmp", "", ""),
