@@ -105,5 +105,5 @@ The main elements of each "checks" block are "action" and "tests"
 3.3 **searchType**  - defines the 'search term pattern', can be one of following:  **exact**, **hasPrefix**, **hasSuffix**, **contains**   
 3.4 **groupId**  - numeric User Id  
 3.4 **userId**   - numeric Group Id    
-3.4 **perm**     - defines the file permission criteria in octal format i.e. 777 or -4000  ('-' and '/' prefix used can be used similar to linux 'find -perm' option)    
+3.4 **perm**     - defines the file permission criteria in octal format i.e. 777 or -4000  ('-' and '/' prefix  can be used similar to linux 'find -perm' option)    
     
