@@ -15,14 +15,10 @@
 package util
 
 import (
-	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"testing"
 )
-
-var tmpFile = fmt.Sprintf("%v,%d", "/tmp/test_util_text_search_content", os.Getpid())
 
 func TestCheckVersion(t *testing.T) {
 	kubeoutput := `Client Version: version.Info{Major:"1", Minor:"7", GitVersion:"v1.7.0", GitCommit:"d3ada0119e776222f11ec7945e6d860061339aad", GitTreeState:"clean", BuildDate:"2017-06-30T09:51:01Z", GoVersion:"go1.8.3", Compiler:"gc", Platform:"darwin/amd64"}
