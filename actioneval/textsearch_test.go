@@ -2,6 +2,7 @@ package actioneval
 
 import (
 	"fmt"
+	"github.com/aquasecurity/bench-common/util"
 	"strings"
 
 	"io/ioutil"
@@ -9,7 +10,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/aquasecurity/bench-common/common"
 	"github.com/aquasecurity/bench-common/mockdata"
 	"gopkg.in/yaml.v2"
 )
@@ -29,28 +29,28 @@ func getTemporaryFileName() string{
 func TestTextSearchFailState(t *testing.T) {
 	testCases := []struct {
 		yaml          string
-		expectedState common.State
+		expectedState util.State
 		testName      string
 		workspace     string
 		errmsg        string
 	}{
 		{mockdata.TestData1,
-			common.FAIL,
+			util.FAIL,
 			"Test for wrong root path", "",
 			"no such file or directory"},
 
 		{fmt.Sprintf(mockdata.TestData2, getTemporaryFileName(), "build", "exact"),
-			common.FAIL,
+			util.FAIL,
 			"Test relative workspace path", "/root/../../../a.txt",
 			"are not supported"},
 
 		{fmt.Sprintf(mockdata.TestData2, getTemporaryFileName(), 555, "wrong_type"),
-			common.FAIL,
+			util.FAIL,
 			"Test for wrong type", "/",
 			"no results found"},
 
 		{fmt.Sprintf(mockdata.TestData2, "/tmp", "", ""),
-			common.FAIL,
+			util.FAIL,
 			"Test for file type", "/",
 			"invalid file"},
 	}
@@ -160,7 +160,7 @@ func TestTextSearchLink(t *testing.T) {
 	}
 	testSearch := NewTextSearchFilter(args)
 	var res = testSearch.SearchFilterHandler(path.Join(tmpDir, "/imageroot"), false)
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", common.FAIL, res.State, res.Errmsgs)
+	if res.State != util.FAIL {
+		t.Errorf("test fail: expected: %v actual: %v, err: %v", util.FAIL, res.State, res.Errmsgs)
 	}
 }

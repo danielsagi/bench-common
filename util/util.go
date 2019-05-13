@@ -21,32 +21,30 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/aquasecurity/bench-common/check"
-	"github.com/aquasecurity/bench-common/common"
 	"github.com/fatih/color"
 	"github.com/golang/glog"
 )
 
 var (
 	// Print colors
-	colors = map[common.State]*color.Color{
-		common.PASS: color.New(color.FgGreen),
-		common.FAIL: color.New(color.FgRed),
-		common.WARN: color.New(color.FgYellow),
-		common.INFO: color.New(color.FgBlue),
+	Colors = map[State]*color.Color{
+		PASS: color.New(color.FgGreen),
+		FAIL: color.New(color.FgRed),
+		WARN: color.New(color.FgYellow),
+		INFO: color.New(color.FgBlue),
 	}
 )
 
 func printlnWarn(msg string) {
 	fmt.Fprintf(os.Stderr, "[%s] %s\n",
-		colors[common.WARN].Sprintf("%s", common.WARN),
+		Colors[WARN].Sprintf("%s", WARN),
 		msg,
 	)
 }
 
 func sprintlnWarn(msg string) string {
 	return fmt.Sprintf("[%s] %s",
-		colors[common.WARN].Sprintf("%s", common.WARN),
+		Colors[WARN].Sprintf("%s", WARN),
 		msg,
 	)
 }
@@ -78,57 +76,12 @@ func CleanIDs(list string) []string {
 }
 
 // colorPrint outputs the state in a specific colour, along with a message string
-func colorPrint(state common.State, s string) {
-	colors[state].Printf("[%s] ", state)
+func ColorPrint(state State, s string) {
+	Colors[state].Printf("[%s] ", state)
 	fmt.Printf("%s", s)
 }
 
-// prettyPrint outputs the results to stdout in human-readable format
-func PrettyPrint(r *check.Controls, summary check.Summary, noRemediations, includeTestOutput bool) {
-	colorPrint(common.INFO, fmt.Sprintf("%s %s\n", r.ID, r.Description))
-	for _, g := range r.Groups {
-		colorPrint(common.INFO, fmt.Sprintf("%s %s\n", g.ID, g.Description))
-		for _, c := range g.Checks {
-			colorPrint(c.State, fmt.Sprintf("%s %s\n", c.ID, c.Description))
 
-			if includeTestOutput && c.State == common.FAIL && len(c.ActualValue) > 0 {
-				printRawOutput(c.ActualValue)
-			}
-		}
-	}
-
-	fmt.Println()
-
-	// Print remediations.
-	if !noRemediations && (summary.Fail > 0 || summary.Warn > 0 || summary.Info > 0) {
-		colors[common.WARN].Printf("== Remediations ==\n")
-		for _, g := range r.Groups {
-			for _, c := range g.Checks {
-				if c.State != common.PASS {
-					fmt.Printf("%s %s\n", c.ID, c.Remediation)
-				}
-			}
-		}
-		fmt.Println()
-	}
-
-	// Print summary setting output color to highest severity.
-	var res common.State
-	if summary.Fail > 0 {
-		res = common.FAIL
-	} else if summary.Warn > 0 {
-		res = common.WARN
-	} else if summary.Info > 0 {
-		res = common.INFO
-	} else {
-		res = common.PASS
-	}
-
-	colors[res].Printf("== Summary ==\n")
-	fmt.Printf("%d checks PASS\n%d checks FAIL\n%d checks WARN\n%d checks INFO\n",
-		summary.Pass, summary.Fail, summary.Warn, summary.Info,
-	)
-}
 
 // verifyBin checks that the binary specified is running
 func verifyBin(bin string, psFunc func(string) string) bool {
@@ -215,8 +168,22 @@ func multiWordReplace(s string, subname string, sub string) string {
 	return strings.Replace(s, subname, sub, -1)
 }
 
-func printRawOutput(output string) {
+func PrintRawOutput(output string) {
 	for _, row := range strings.Split(output, "\n") {
 		fmt.Println(fmt.Sprintf("\t %s", row))
 	}
+}
+
+
+func HandleError(err error, context string) (errmsg string) {
+	if err != nil {
+		errmsg = fmt.Sprintf("%s, error: %s\n", context, err)
+	}
+	return
+}
+
+// ExitWithError takes terminates execution with error message.
+func ExitWithError(err error) {
+	fmt.Fprintf(os.Stderr, "\n%v\n", err)
+	os.Exit(1)
 }

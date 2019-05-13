@@ -18,7 +18,7 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/util"
 	"github.com/golang/glog"
 	"gopkg.in/yaml.v2"
 	"strings"
@@ -226,26 +226,26 @@ func (controls *Controls) JSON() ([]byte, error) {
 
 func summarize(controls *Controls, check *Check) {
 	switch check.State {
-	case common.PASS:
+	case util.PASS:
 		controls.Summary.Pass++
-	case common.FAIL:
+	case util.FAIL:
 		controls.Summary.Fail++
-	case common.WARN:
+	case util.WARN:
 		controls.Summary.Warn++
-	case common.INFO:
+	case util.INFO:
 		controls.Summary.Info++
 	}
 }
 
 func summarizeGroup(group *Group, check *Check) {
 	switch check.State {
-	case common.PASS:
+	case util.PASS:
 		group.Pass++
-	case common.FAIL:
+	case util.FAIL:
 		group.Fail++
-	case common.WARN:
+	case util.WARN:
 		group.Warn++
-	case common.INFO:
+	case util.INFO:
 		group.Info++
 	}
 }

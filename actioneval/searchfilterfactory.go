@@ -18,14 +18,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/util"
 	"gopkg.in/yaml.v2"
 )
 
 type SearchFilterResult struct {
 	Output  bytes.Buffer
 	Errmsgs string
-	State   common.State
+	State   util.State
 	Lines   int
 }
 
@@ -37,9 +37,9 @@ func SearchFilterFactory(searchFilterType string, mapSlice yaml.MapSlice, tarHea
 
 	switch searchFilterType {
 
-	case common.TEXTSEARCH:
+	case util.TEXTSEARCH:
 		return NewTextSearchFilter(mapSlice), nil
-	case common.FILESEARCH:
+	case util.FILESEARCH:
 		search, err := NewFileSearchFilter(mapSlice)
 		return search.WithTarHeaders(tarHeaders), err
 	default:

@@ -16,8 +16,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
 	"github.com/aquasecurity/bench-common/runner"
+	"github.com/aquasecurity/bench-common/util"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"io/ioutil"
@@ -42,15 +42,15 @@ func Main(filePath string, constraints []string) {
 			WithConstrains(constraints).
 			Build(); err == nil {
 			if err := runner.RunTestsWithOutput(jsonFmt, noRemediations, includeTestOutput); err != nil {
-				common.ExitWithError(err)
+				util.ExitWithError(err)
 			}
 
 		} else {
-			common.ExitWithError(err)
+			util.ExitWithError(err)
 		}
 
 	} else {
-		common.ExitWithError(err)
+		util.ExitWithError(err)
 	}
 
 }

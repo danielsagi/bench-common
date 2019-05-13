@@ -4,13 +4,13 @@ import (
 	"archive/tar"
 	"encoding/json"
 	"fmt"
+	"github.com/aquasecurity/bench-common/util"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/aquasecurity/bench-common/common"
 	"github.com/aquasecurity/bench-common/mockdata"
 )
 
@@ -238,8 +238,8 @@ func TestFileSearchRelativeDir(t *testing.T) {
 	}
 	fileSearchFilter, _ := NewFileSearchFilter(args)
 	res := fileSearchFilter.SearchFilterHandler("/root/..//.../aaa", false)
-	if res.State != common.FAIL {
-		t.Errorf("test fail: expected: %v actual: %v, err: %v", common.FAIL, res.State, res.Errmsgs)
+	if res.State != util.FAIL {
+		t.Errorf("test fail: expected: %v actual: %v, err: %v", util.FAIL, res.State, res.Errmsgs)
 	}
 }
 

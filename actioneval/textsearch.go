@@ -17,7 +17,7 @@ package actioneval
 import (
 	"bufio"
 	"fmt"
-	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/util"
 	"gopkg.in/yaml.v2"
 	"os"
 	"path"
@@ -29,7 +29,7 @@ import (
 type TextSearchFilter struct {
 	searchLocation string
 	filter         string
-	filterType     common.YamlEntityValue
+	filterType     util.YamlEntityValue
 }
 
 func NewTextSearchFilter(mapSlice yaml.MapSlice) SearchFilter {
@@ -41,13 +41,13 @@ func NewTextSearchFilter(mapSlice yaml.MapSlice) SearchFilter {
 		key := fmt.Sprintf("%v", mapItem.Key)
 		val := fmt.Sprintf("%v", mapItem.Value)
 
-		switch common.YamlEntityName(key) {
-		case common.PathEntity:
+		switch util.YamlEntityName(key) {
+		case util.PathEntity:
 			filter.searchLocation = val
-		case common.FilterEntity:
+		case util.FilterEntity:
 			filter.filter = val
-		case common.FilterTypeEntity:
-			filter.filterType = common.YamlEntityValue(val)
+		case util.FilterTypeEntity:
+			filter.filterType = util.YamlEntityValue(val)
 		}
 	}
 
@@ -60,34 +60,34 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 	clearRootPath := path.Clean(rootPath)
 	// ensure that search location does not escape the workspace
 	if !strings.HasPrefix(clearRootPath, workspacePath) {
-		result.Errmsgs += common.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(t).String())
-		result.State = common.FAIL
+		result.Errmsgs += util.HandleError(fmt.Errorf("relative path "+rootPath+" are not supported "), reflect.TypeOf(t).String())
+		result.State = util.FAIL
 		return result
 	}
 
 	if fileStat, statErr := os.Lstat(clearRootPath); statErr != nil {
-		result.Errmsgs += common.HandleError(statErr, reflect.TypeOf(t).String())
-		result.State = common.FAIL
+		result.Errmsgs += util.HandleError(statErr, reflect.TypeOf(t).String())
+		result.State = util.FAIL
 		return result
 	} else {
 		if fileStat.Mode()&os.ModeSymlink != 0 { // is link
 			// ensure that link does not refer outside of the image path
 			var realPath, err = filepath.EvalSymlinks(clearRootPath)
 			if err != nil {
-				result.Errmsgs += common.HandleError(err, reflect.TypeOf(t).String())
-				result.State = common.FAIL
+				result.Errmsgs += util.HandleError(err, reflect.TypeOf(t).String())
+				result.State = util.FAIL
 				return result
 			}
 
 			if !strings.HasPrefix(realPath, workspacePath) {
-				result.Errmsgs += common.HandleError(fmt.Errorf("Symbolic link file "+clearRootPath+" refers to "+realPath+" , that is out of image fs scope"), reflect.TypeOf(t).String())
-				result.State = common.FAIL
+				result.Errmsgs += util.HandleError(fmt.Errorf("Symbolic link file "+clearRootPath+" refers to "+realPath+" , that is out of image fs scope"), reflect.TypeOf(t).String())
+				result.State = util.FAIL
 				return result
 			}
 			// ensure this is regular file i.e. not dir or socket file ...
 		} else if !fileStat.Mode().IsRegular() {
-			result.Errmsgs += common.HandleError(fmt.Errorf("invalid file "+clearRootPath), reflect.TypeOf(t).String())
-			result.State = common.FAIL
+			result.Errmsgs += util.HandleError(fmt.Errorf("invalid file "+clearRootPath), reflect.TypeOf(t).String())
+			result.State = util.FAIL
 			return result
 
 		}
@@ -98,8 +98,8 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 	defer f.Close()
 
 	if err != nil {
-		result.Errmsgs += common.HandleError(fmt.Errorf("Unable to open file"+f.Name()), reflect.TypeOf(t).String())
-		result.State = common.FAIL
+		result.Errmsgs += util.HandleError(fmt.Errorf("Unable to open file"+f.Name()), reflect.TypeOf(t).String())
+		result.State = util.FAIL
 		return result
 	}
 
@@ -109,9 +109,9 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 		line := scanner.Text()
 		match = false
 		for _, word := range strings.Fields(line) {
-			if t.filterType == common.HasPrefixVal && strings.HasPrefix(word, t.filter) ||
-				t.filterType == common.HasSuffixVal && strings.HasSuffix(word, t.filter) ||
-				t.filterType == common.ContainsVal && strings.Contains(word, t.filter) {
+			if t.filterType == util.HasPrefixVal && strings.HasPrefix(word, t.filter) ||
+				t.filterType == util.HasSuffixVal && strings.HasSuffix(word, t.filter) ||
+				t.filterType == util.ContainsVal && strings.Contains(word, t.filter) {
 				match = true
 				break
 			}
@@ -124,8 +124,8 @@ func (t *TextSearchFilter) SearchFilterHandler(workspacePath string, count bool)
 		}
 	}
 	if result.Lines == 0 {
-		result.Errmsgs += common.HandleError(fmt.Errorf("no results found"), reflect.TypeOf(t).String())
-		result.State = common.FAIL
+		result.Errmsgs += util.HandleError(fmt.Errorf("no results found"), reflect.TypeOf(t).String())
+		result.State = util.FAIL
 	}
 	if count {
 		result.Output.Reset()

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"github.com/aquasecurity/bench-common/actioneval"
 	"github.com/aquasecurity/bench-common/auditeval"
-	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/util"
 	"github.com/golang/glog"
 	"gopkg.in/yaml.v2"
 	"io"
@@ -66,7 +66,7 @@ type Check struct {
 	Tests          *auditeval.Tests `json:"omit"`
 	Remediation    string           `json:"-"`
 	TestInfo       []string         `json:"test_info"`
-	common.State   `json:"status"`
+	util.State     `json:"status"`
 	ActualValue    string `json:"actual_value"`
 	ExpectedResult string `json:"expected_result"`
 	Scored         bool   `json:"scored"`
@@ -109,13 +109,13 @@ func (c *Check) WithTarHeaders(tarHeaders []tar.Header) *Check {
 func (c *Check) Run(definedConstraints map[string][]string) {
 	// If check type is skip, force result to INFO
 	if c.Type == "skip" {
-		c.State = common.INFO
+		c.State = util.INFO
 		return
 	}
 
 	//If check type is manual or the check is not scored, force result to WARN
 	if c.Type == "manual" || !c.Scored {
-		c.State = common.WARN
+		c.State = util.WARN
 		return
 	}
 
@@ -133,7 +133,7 @@ func (c *Check) Run(definedConstraints map[string][]string) {
 		subCheck = getFirstValidSubCheck(c.SubChecks, definedConstraints)
 
 		if subCheck == nil {
-			c.State = common.WARN
+			c.State = util.WARN
 			glog.V(1).Info("Failed to find a valid sub check, check ", c.ID)
 			return
 		}
@@ -164,12 +164,12 @@ func (c *Check) Run(definedConstraints map[string][]string) {
 		c.ExpectedResult = finalOutput.ExpectedResult
 
 		if finalOutput.TestResult {
-			c.State = common.PASS
+			c.State = util.PASS
 		} else {
-			c.State = common.FAIL
+			c.State = util.FAIL
 		}
 	} else {
-		c.State = common.WARN
+		c.State = util.WARN
 		glog.V(1).Info("Test output contains a nil value")
 		return
 	}
@@ -235,22 +235,22 @@ func isShellCommand(s string) bool {
 	return false
 }
 
-func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state common.State) {
+func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state util.State) {
 
 	// If check type is manual, force result to WARN.
 	if c.Type == "manual" {
-		return out, errmsgs, common.WARN
+		return out, errmsgs, util.WARN
 	}
 
 	if c.Type == "skip" {
-		return out, errmsgs, common.INFO
+		return out, errmsgs, util.INFO
 	}
 
 	// Check if command exists or exit with WARN.
 	for _, cmd := range c.Commands {
 		if !isShellCommand(cmd.Path) {
 			glog.V(1).Infof("%s: command not found", cmd.Path)
-			return out, errmsgs, common.WARN
+			return out, errmsgs, util.WARN
 		}
 	}
 
@@ -258,7 +258,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state comm
 	n := len(c.Commands)
 	if n == 0 {
 		// Likely a warning message.
-		return out, errmsgs, common.WARN
+		return out, errmsgs, util.WARN
 	}
 
 	// Each command runs,
@@ -275,7 +275,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state comm
 
 	for i < n {
 		cs[i-1].Stdout, err = cs[i].StdinPipe()
-		errmsgs += common.HandleError(
+		errmsgs += util.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command: %s",
 				c.Audit,
@@ -289,7 +289,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state comm
 	i = 0
 	for i < n {
 		err := cs[i].Start()
-		errmsgs += common.HandleError(
+		errmsgs += util.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command: %s",
 				c.Audit,
@@ -303,7 +303,7 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state comm
 	i = 0
 	for i < n {
 		err := cs[i].Wait()
-		errmsgs += common.HandleError(
+		errmsgs += util.HandleError(
 			err,
 			fmt.Sprintf("failed to run: %s\nfailed command:%s",
 				c.Audit,
@@ -322,27 +322,27 @@ func runAuditCommands(c BaseCheck) (out bytes.Buffer, errmsgs string, state comm
 	return out, errmsgs, ""
 }
 
-func (c *Check) runAction(baseCheck BaseCheck) (out bytes.Buffer, errmsgs string, state common.State) {
+func (c *Check) runAction(baseCheck BaseCheck) (out bytes.Buffer, errmsgs string, state util.State) {
 
 	// If check type is manual, force result to WARN.
 	if baseCheck.Type == "manual" {
-		return out, errmsgs, common.WARN
+		return out, errmsgs, util.WARN
 	}
 
 	if baseCheck.Type == "skip" {
-		return out, errmsgs, common.INFO
+		return out, errmsgs, util.INFO
 	}
 
 	if baseCheck.Audit != "" {
-		return out, common.HandleError(fmt.Errorf("yaml Audit entity is not supported in non shell mode"), reflect.TypeOf(c).String()), common.FAIL
+		return out, util.HandleError(fmt.Errorf("yaml Audit entity is not supported in non shell mode"), reflect.TypeOf(c).String()), util.FAIL
 
 	}
 	searchFilter, err := actioneval.SearchFilterFactory(baseCheck.Action.CheckType, baseCheck.Action.Args, c.tarHeaders)
 	if err != nil {
-		return out, common.HandleError(err, reflect.TypeOf(c).String()), common.FAIL
+		return out, util.HandleError(err, reflect.TypeOf(c).String()), util.FAIL
 	}
 	if searchFilter == nil {
-		return out, "Unsupported search type " + baseCheck.Action.CheckType, common.FAIL
+		return out, "Unsupported search type " + baseCheck.Action.CheckType, util.FAIL
 	}
 	var res = searchFilter.SearchFilterHandler(c.boundaryPath, baseCheck.Action.Count)
 	return res.Output, res.Errmsgs, res.State

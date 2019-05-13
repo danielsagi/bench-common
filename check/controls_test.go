@@ -15,7 +15,7 @@
 package check
 
 import (
-	"github.com/aquasecurity/bench-common/common"
+	"github.com/aquasecurity/bench-common/util"
 	"testing"
 )
 
@@ -80,7 +80,7 @@ func TestRunChecks(t *testing.T) {
 
 func TestSummarizeGroup(t *testing.T) {
 	type TestCase struct {
-		state    common.State
+		state    util.State
 		group    Group
 		check    Check
 		Expected int

@@ -133,7 +133,54 @@ func (ctx *BenchRunner) RunTestsWithOutput(jsonFmt bool, noRemediations bool, in
 		}
 		fmt.Println(string(out))
 	} else {
-		util.PrettyPrint(ctx.mControls, summary, noRemediations, includeTestOutput)
+		PrettyPrint(ctx.mControls, summary, noRemediations, includeTestOutput)
 	}
 	return nil
+}
+
+// prettyPrint outputs the results to stdout in human-readable format
+func PrettyPrint(r *check.Controls, summary check.Summary, noRemediations, includeTestOutput bool) {
+	util.ColorPrint(util.INFO, fmt.Sprintf("%s %s\n", r.ID, r.Description))
+	for _, g := range r.Groups {
+		util.ColorPrint(util.INFO, fmt.Sprintf("%s %s\n", g.ID, g.Description))
+		for _, c := range g.Checks {
+			util.ColorPrint(c.State, fmt.Sprintf("%s %s\n", c.ID, c.Description))
+
+			if includeTestOutput && c.State == util.FAIL && len(c.ActualValue) > 0 {
+				util.PrintRawOutput(c.ActualValue)
+			}
+		}
+	}
+
+	fmt.Println()
+
+	// Print remediations.
+	if !noRemediations && (summary.Fail > 0 || summary.Warn > 0 || summary.Info > 0) {
+		util.Colors[util.WARN].Printf("== Remediations ==\n")
+		for _, g := range r.Groups {
+			for _, c := range g.Checks {
+				if c.State != util.PASS {
+					fmt.Printf("%s %s\n", c.ID, c.Remediation)
+				}
+			}
+		}
+		fmt.Println()
+	}
+
+	// Print summary setting output color to highest severity.
+	var res util.State
+	if summary.Fail > 0 {
+		res = util.FAIL
+	} else if summary.Warn > 0 {
+		res = util.WARN
+	} else if summary.Info > 0 {
+		res = util.INFO
+	} else {
+		res = util.PASS
+	}
+
+	util.Colors[res].Printf("== Summary ==\n")
+	fmt.Printf("%d checks PASS\n%d checks FAIL\n%d checks WARN\n%d checks INFO\n",
+		summary.Pass, summary.Fail, summary.Warn, summary.Info,
+	)
 }
